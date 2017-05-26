@@ -1,0 +1,112 @@
+Create below tables on your oracle db. Dont apply primary key now.
+
+create table customer(cust_id number,c_name varchar2(200),c_age number);
+create table invoice(inv_id number(7),cust_id number);
+
+Note: you have to use your oracle dependency for maven pom or else install oracle jar into m2.
+
+Now import the code. It is a maven project. I have shared all the dependecies as part of pom.xml.
+
+We will see the behaviour of transaction in 2 cases 
+1. RunTime Exceptions
+2. Checked Exceptions
+
+While working with below test cases we will change the applicationContext.xml by just copying and replacing the xml tag <tx:advice>..</tx:advice>
+
+We have to use the 2 types of test Data like custId and invId. We have to set these values from App.java.
+
+case 1:
+------
+RunTimeExceptions without rollback-for: It means if any run time exception occurs transaction will be rollback automatically.
+
+<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<tx:method name="generateInvoice" read-only="false" />
+			<tx:method name="get*" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+	
+custId=10,invId=20;
+
+-inserted into customer
+-RunTimeException is CustomNumberFormatException thrown while executing invoiceDao
+-so this transaction rolled back.
+-now select * from customer ; no records will be shown for this transaction where we have used 
+custId=10,invId=20;
+-remember no need to specify rollback-for if it is a RunTimeException.
+
+case 2:
+------
+RunTimeExceptions with no-rollback-for: It means transaction won't be rollback when the specific runtime exception occurs.
+<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<tx:method name="generateInvoice" read-only="false"
+				no-rollback-for="CustomNumberFormatException" />
+			<tx:method name="get*" read-only="true" />
+		</tx:attributes>
+</tx:advice>
+	
+custId=1,invId=20;
+-inserted into customer
+-RunTimeException is CustomNumberFormatException thrown while executing invoiceDao
+-so this transaction will not be rolled back as we have specified no-rollback-for CustomNumberFormatException.
+-now select * from customer ; 1 records will be shown for this transaction where we have used 
+custId=1,invId=20;
+
+
+case 3:
+------ 
+Checked Exception with out rollback-for
+
+So we need to replace few lines of code in invoiceDao. 
+We are replacing the below
+if (invoiceBO.getInvoiceId() == 20)
+			throw new CustomNumberFormatException("exception thrown");
+lines with 
+if (invoiceBO.getInvoiceId() == 20)
+			throw new Exception("exception thrown");
+
+We modified above just to replace a Runtime Exception with a checked exception.
+Now dont surround the checked exception with try and catch just throws subsequently from one-class to another until App.java.
+
+Update the applicationContext.xml with the below configuration.
+
+<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<tx:method name="generateInvoice" read-only="false" />
+			<tx:method name="get*" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+	
+custId=15,invId=20;
+
+-inserted into customer
+-Checked Exception is Exception thrown while executing invoiceDao
+-so this transaction faces a checked Exception and will not be rolled back as we have not specified rollback-for Exception.
+-now select * from customer ; 1 records will be shown for this transaction where we have used 
+custId=15,invId=20;
+
+case 4:
+------ 
+Checked Exception with  rollback-for
+
+
+
+Update the applicationContext.xml with the below configuration.
+
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<tx:method name="generateInvoice" read-only="false" rollback-for="Exception"/>
+			<tx:method name="get*" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+	
+custId=16,invId=20;
+
+-inserted into customer
+-Checked Exception is Exception thrown while executing invoiceDao
+-so this transaction faces a checked Exception and will be rolled back as we have  specified rollback-for Exception.
+-now select * from customer ; no records will be shown for this transaction where we have used 
+custId=16,invId=20;
+
+ 
